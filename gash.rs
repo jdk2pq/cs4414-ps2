@@ -1,5 +1,14 @@
 use std::{io, run};
 
+
+fn change_dir() {
+   // Do stuff
+}
+
+fn history() {
+   // make history!
+}
+
 fn main() {
     static CMD_PROMPT: &'static str = "gash > ";
     
@@ -15,6 +24,8 @@ fn main() {
             let program = argv.remove(0);
             match program {
                 ~"exit"     => {return; }
+                ~"cd"       => {change_dir(); }
+                ~"history"  => {history(); }
                 _           => {run::process_status(program, argv);}
             }
         }
