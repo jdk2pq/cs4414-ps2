@@ -1,3 +1,5 @@
-Title: Problem Set 2 Answers
-Authors: Jake Kenneally, Nick Skelsey
+Title: Problem Set Two
+Authors: Nick Skelsey, Jake Kenneally
 
+
+call chdir() to implement cd
