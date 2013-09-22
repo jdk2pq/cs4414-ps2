@@ -26,7 +26,6 @@ fn main() {
             let program = argv.remove(0);
             match program {
                 ~"exit"     => {return; }
-<<<<<<< HEAD
                 ~"hist"     => {
                     println(hist.len().to_str());
                     let mut x = 0;
@@ -36,10 +35,7 @@ fn main() {
                         x++;
                     }   
                 }
-=======
                 ~"cd"       => {change_dir(); }
-                ~"history"  => {history(); }
->>>>>>> 68e6da01e6d97002b1efe37ec020c953d5a7c3bc
                 _           => {run::process_status(program, argv);}
             }
         }
