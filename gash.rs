@@ -17,9 +17,17 @@ fn main() {
             match program {
                 ~"exit"     => {return; }
                 ~"cd"       => {
-                    let dir: &Path = &GenericPath::from_str(argv.remove(0));
-                    if !os::change_dir(dir) { 
-                        println("Error: No such file or directory");
+                    if argv.len() == 0 {
+                        let homedir = match os::homedir() {
+                            Some(m) => m,
+                            None => GenericPath::from_str("~")
+                        };
+                        os::change_dir(&homedir);    
+                    } else {
+                        let dir: &Path = &GenericPath::from_str(argv.remove(0));
+                        if !os::change_dir(dir) { 
+                            println("Error: No such file or directory");
+                        }
                     }
                 }
                 ~"history"     => {
