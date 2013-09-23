@@ -39,14 +39,21 @@ fn main() {
                     }   
                 }
                 _           => {
-
-                    if argv.len() != 0 && program != ~"cd" {
-                        let test = argv.remove(0);
-                        match test {
+                    if argv.len() != 0 {
+                        let mut background = ~"";
+                        if argv.last() == &~"&" {
+                            background = argv.pop();
+                        } else {
+                            background = ~"";
+                        }
+                        let args = argv;
+                        match background {
                             ~"&" => {
-                                run::Process::new(program, argv, run::ProcessOptions::new());
+                                do std::task::spawn_sched(std::task::SingleThreaded) { 
+                                    run::Process::new(program, args, run::ProcessOptions::new());
+                                }
                             }
-                            _ => {run::process_status(program, argv);}
+                            _ => {run::process_status(program, args);}
                         }
                     } else {
                         run::process_status(program, argv);
