@@ -30,7 +30,7 @@ fn main() {
                         }
                     }
                 }
-                ~"history"     => {
+                ~"history"  => {
                     let mut x = 0;
                     while x < hist.len()
                     {
@@ -38,7 +38,21 @@ fn main() {
                         x += 1;
                     }   
                 }
-                _           => {run::process_status(program, argv);}
+                _           => {
+
+                    if argv.len() != 0 && program != ~"cd" {
+                        let test = argv.remove(0);
+                        match test {
+                            ~"&" => {
+                                run::Process::new(program, argv, run::ProcessOptions::new());
+                            }
+                            _ => {run::process_status(program, argv);}
+                        }
+                    } else {
+                        run::process_status(program, argv);
+                    }
+
+                }
             }
         }
     }
