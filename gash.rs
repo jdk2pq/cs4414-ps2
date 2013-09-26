@@ -40,7 +40,7 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
     println(fmt!("%?", progs_to_run));
 
     // spawn process
-    run::process_status(progs_to_run[0].program, progs_to_run[1].args);
+    run::process_status(progs_to_run[0].program, progs_to_run[0].args);
 }
 
 
