@@ -47,12 +47,12 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
 fn main() {
     // `static indicates that variable will have the static lifetime, meaing
     // it gets to live for the whole life of the program
-
-    static CMD_PROMPT: &'static str = "gash > ";
+    let mut cwd: ~str = os::getcwd().to_str();
     let mut hist: ~[~str] = ~[]; 
     let mut lastarg: ~str = ~"";
     
     loop {
+        let CMD_PROMPT: ~str = cwd + " gash > ";
         print(CMD_PROMPT);
         let mut line = io::stdin().read_line();
         line = line.replace("!$", lastarg);
@@ -94,30 +94,32 @@ fn main() {
                     parse_and_run("sudo", args);
                 }
                 _           => {
-                    if argv.len() != 0 {
-                        let mut background: ~str;
-                        if argv.last() == &~"&" {
-                            background = argv.pop();
-                        } else {
-                            background = ~"";
-                        }
-                        // this line works because it changes the mutability of argv
-                        // so that the subproccess can confidently access values in argv
-                        let args: ~[~str] = copy argv; 
-                        // we can no longer modify argv, hence:
-                        // argv[0] = ~"foo"; //fails complitation
-                        match background {
-                            ~"&" => {
-                                do std::task::spawn_sched(std::task::SingleThreaded) { 
-                                    parse_and_run(program, args);
-                                }
+                    let dir: &Path = &GenericPath::from_str(program);
+                    if !os::change_dir(dir) { 
+                        if argv.len() != 0 {
+                            let mut background: ~str;
+                            if argv.last() == &~"&" {
+                                background = argv.pop();
+                            } else {
+                                background = ~"";
                             }
-                            _ => {parse_and_run(program, args);}
+                            // this line works because it changes the mutability of argv
+                            // so that the subproccess can confidently access values in argv
+                            let args: ~[~str] = copy argv; 
+                            // we can no longer modify argv, hence:
+                            // argv[0] = ~"foo"; //fails complitation
+                            match background {
+                                ~"&" => {
+                                    do std::task::spawn_sched(std::task::SingleThreaded) { 
+                                        parse_and_run(program, args);
+                                    }
+                                }
+                                _ => {parse_and_run(program, args);}
+                            }
+                        } else {
+                            parse_and_run(program, argv)
                         }
-                    } else {
-                        parse_and_run(program, argv)
                     }
-
                 }
             }
         }
@@ -126,5 +128,6 @@ fn main() {
             let end = argv.len() - 1;
             lastarg = argv.remove(end);
         }
+        cwd = os::getcwd().to_str();
     }
 }
