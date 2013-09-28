@@ -47,16 +47,19 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
 fn main() {
     // `static indicates that variable will have the static lifetime, meaing
     // it gets to live for the whole life of the program
+
     static CMD_PROMPT: &'static str = "gash > ";
     let mut hist: ~[~str] = ~[]; 
+    let mut lastarg: ~str = ~"";
     
     loop {
         print(CMD_PROMPT);
-        let line = io::stdin().read_line();
-        hist.push(line.clone());
+        let mut line = io::stdin().read_line();
+        line = line.replace("!$", lastarg);
         debug!(fmt!("line: %?", line));
         let mut argv: ~[~str] = line.split_iter(' ').filter(|&x| x != "").transform(|x| x.to_owned()).collect();
         debug!(fmt!("argv %?", argv));
+
         
         if argv.len() > 0 {
             let program = argv.remove(0);
@@ -84,6 +87,12 @@ fn main() {
                         x += 1;
                     }   
                 }
+                ~"!!"  => {
+                    let end = hist.len() -1;
+                    let lastprog = hist.remove(end);
+                    let args: ~[~str] = lastprog.split_iter(' ').filter(|&x| x != "").transform(|x| x.to_owned()).collect();
+                    parse_and_run("sudo", args);
+                }
                 _           => {
                     if argv.len() != 0 {
                         let mut background: ~str;
@@ -94,7 +103,7 @@ fn main() {
                         }
                         // this line works because it changes the mutability of argv
                         // so that the subproccess can confidently access values in argv
-                        let args: ~[~str] = argv; 
+                        let args: ~[~str] = copy argv; 
                         // we can no longer modify argv, hence:
                         // argv[0] = ~"foo"; //fails complitation
                         match background {
@@ -111,6 +120,11 @@ fn main() {
 
                 }
             }
+        }
+        hist.push(line.clone());
+        if (argv.len() >= 1) {
+            let end = argv.len() - 1;
+            lastarg = argv.remove(end);
         }
     }
 }
