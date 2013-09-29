@@ -94,7 +94,7 @@ fn main() {
                     parse_and_run("sudo", args);
                 }
                 _           => {
-                    let dir: &Path = &GenericPath::from_str(program);
+                    let dir: &Path = &GenericPath::from_str(line);
                     if !os::change_dir(dir) { 
                         if argv.len() != 0 {
                             let mut background: ~str;
