@@ -1,5 +1,4 @@
 use std::{io, str, run, os, libc};
-use std::run::{Process, ProcessOptions};
 
 struct p_params  { // stores information to be passed into a process
     program: ~str,
@@ -34,6 +33,7 @@ fn write_file_fd(filename: &str) -> i32 {
     }
 }
 
+// reads a given file descriptor and closes
 fn read_close(fd: libc::c_int) -> ~str {
     unsafe {
         let file = os::fdopen(fd);
@@ -44,17 +44,65 @@ fn read_close(fd: libc::c_int) -> ~str {
     }
 }
 
-fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to return an int
-    let args = args.to_owned();
-    // Extra Feature! backticks!
+fn process_backticks(orig_args: &[~str]) -> ~[~str] { // launches subprocesses
+    let args = orig_args.to_owned();
+    let mut ticks = false;
+    let mut return_args: ~[~str] = ~[];
+    let mut sub_proc = ~[];
+    let mut i = 0;
+    // iteratively process argument for backticks
+    while i < args.len() {
+       let mut arg: ~str = args[i].to_owned();
+       if arg.starts_with("`") {
+          ticks = true;
+          arg = arg.slice_from(1).to_owned();
+       }     
+       if ticks {
+          if arg.ends_with("`") {
+            arg = arg.slice_to(arg.len()-1).to_owned();
+            sub_proc.push(arg);
+            // Evaluate command specified by tick
+            let program = copy sub_proc[0];              
+            let pass_in = copy sub_proc.slice(1, sub_proc.len()).to_owned();
+            // this is where a new process, which lives in backticks is spawned
+            let mut retd_args_str = parse_and_run(program, pass_in, true);
+            // A hack to format string correctly for processing
+            retd_args_str = retd_args_str.replace("\n", " ");
+            // Take result and add it to arg str
+            let retd_args: ~[~str] = retd_args_str.split_iter(' ').filter(|&x| x != "").transform(|x| x.to_owned()).collect();
+            for retd_args.iter().advance |r_arg| {
+                return_args.push(r_arg.to_owned());
+            }
+            // reset tick and sub_proc to process multiple ticks
+            ticks = false;
+            sub_proc = ~[];
+          } else {
+              sub_proc.push(arg);
+          }
+       } else {
+         return_args.push(arg)
+       }
+       i += 1;
+    } 
+    return return_args;
+} // returns the args with backticks evaluated and filled in  
 
-    //
+
+fn parse_and_run(program: &str, args: &[~str], return_stdout: bool) -> ~str { // return_stdout allows us to play with pipe or process output
+    let mut args = args.to_owned();
+    // Extra Feature! backticks!
+    args = process_backticks(args);
+    // REGULAR PROCESSING
     let mut i = 0; 
-    let mut list_pos = 0;
+    // This list keeps track of all the pipes we are going to use, (we must close them later)
     let mut pipes: ~[os::Pipe] = ~[];
     let  first_p = os::pipe();
     let  last_p = os::pipe();
+    // holds our process structs                     The first process here reads from stdin: hence V
     let mut progs_to_run: ~[p_params] = ~[p_params { program: program.to_owned(), args: ~[], in_fd: 0, out_fd: last_p.out}];
+    // poorly named, for index into p_param array
+    let mut list_pos = 0;
+    // iteratively consider each argument
     while list_pos < args.len() {
         let arg: ~str = args[list_pos].to_owned();
         let mut cur_prog = copy progs_to_run[i];
@@ -74,6 +122,7 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
                 list_pos += 1;  
             },
             ~"|"    => {
+                // this pipe will be recycled
                 let pipe =  os::pipe();
                 pipes.push(pipe);
                 cur_prog.out_fd = pipe.out;
@@ -96,6 +145,7 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
 
     let mut j = 0;
     let error_p = os::pipe();
+    // iterate through p_param struct to spawn processes
     while j <  progs_to_run.len()  {
         let cur = copy progs_to_run[j];
         // This spawns our subprocesses
@@ -116,8 +166,15 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
         os::close(pipe.in);
     };
     os::close(error_p.out);
-    println(read_close(error_p.in));
-    println(read_close(last_p.in));
+    // branch on return type, usually we just print to screen
+    if return_stdout {
+        println(read_close(error_p.in));
+        return read_close(last_p.in);   
+    } else {
+        println(read_close(error_p.in));
+        println(read_close(last_p.in));
+        return ~"";
+    }   
     
 }
 
@@ -166,7 +223,7 @@ fn main() {
                     let end = hist.len() -1;
                     let lastprog = hist.remove(end);
                     let args: ~[~str] = lastprog.split_iter(' ').filter(|&x| x != "").transform(|x| x.to_owned()).collect();
-                    parse_and_run("sudo", args);
+                    parse_and_run("sudo", args, false);
                 }
                 _           => {
                     let dir: &Path = &GenericPath::from_str(line);
@@ -186,13 +243,13 @@ fn main() {
                             match background {
                                 ~"&" => {
                                     do std::task::spawn_sched(std::task::SingleThreaded) { 
-                                        parse_and_run(program, args);
+                                        parse_and_run(program, args, false);
                                     }
                                 }
-                                _ => {parse_and_run(program, args);}
+                                _ => {parse_and_run(program, args, false);}
                             }
                         } else {
-                            parse_and_run(program, argv)
+                            parse_and_run(program, argv, false);
                         }
                     }
                 }
