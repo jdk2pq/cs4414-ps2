@@ -4,8 +4,8 @@ use std::run::{Process, ProcessOptions};
 struct p_params  { // stores information to be passed into a process
     program: ~str,
     args: ~[~str],
-    in_fd:    Option<i32>,
-    out_fd:   Option<i32>,
+    in_fd:    i32,
+    out_fd:   i32,
 }
 
 fn read_file_fd(filename: &str) -> i32 {
@@ -58,7 +58,7 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
     let mut pipes: ~[os::Pipe] = ~[os::pipe(), ];
     let mut first_p = pipes[0];
     let mut last_p = os::pipe();
-    let mut progs_to_run: ~[p_params] = ~[p_params { program: program.to_owned(), args: ~[], in_fd: Some(first_p.in), out_fd: Some(last_p.out)}];
+    let mut progs_to_run: ~[p_params] = ~[p_params { program: program.to_owned(), args: ~[], in_fd: first_p.in, out_fd: last_p.out}];
     while list_pos < args.len() {
         let arg: ~str = args[list_pos].to_owned();
         let mut cur_prog = copy progs_to_run[i];
@@ -66,14 +66,14 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
             ~"<"    => {
                 let filename: &str = args[list_pos + 1];
                 let FILE_fd: i32 = read_file_fd(filename);
-                cur_prog.in_fd =  Some(FILE_fd);
+                cur_prog.in_fd =  FILE_fd;
                 progs_to_run[i] = cur_prog; 
                 list_pos += 1;  
             },
             ~">"    => {
                 let filename: &str = args[list_pos + 1];
                 let FILE_fd: i32 = write_file_fd(filename);
-                cur_prog.out_fd =  Some(FILE_fd);
+                cur_prog.out_fd =  FILE_fd;
                 progs_to_run[i] = cur_prog; 
                 list_pos += 1;  
             },
@@ -81,9 +81,9 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
                 let pipe =  os::pipe();
                 pipes.push(pipe);
                 println(fmt!("%?", pipe));
-                cur_prog.out_fd = Some(pipe.out);
+                cur_prog.out_fd = pipe.out;
                 progs_to_run[i] = cur_prog;
-                let next_pstruct = p_params { program: ~"", args: ~[], in_fd: Some(pipe.in), out_fd: Some(last_p.out)};
+                let next_pstruct = p_params { program: ~"", args: ~[], in_fd: pipe.in, out_fd: last_p.out};
                 progs_to_run.push(next_pstruct);
                 i += 1;
             },
@@ -105,13 +105,7 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
     while j <  progs_to_run.len()  {
         let cur = copy progs_to_run[j];
         println("before");
-            let p =  &'static Process::new(cur.program, cur.args, ProcessOptions { 
-                env: None,
-                dir: None,
-                in_fd:  cur.in_fd,
-                out_fd: cur.out_fd,
-                err_fd: Some(error_p.out)
-            }); 
+        run::spawn_process_os(cur.program, cur.args, None, None, cur.in_fd, cur.out_fd, error_p.out);
         println("after");
         j += 1;
     };
