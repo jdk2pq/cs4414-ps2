@@ -220,10 +220,15 @@ fn main() {
                     }   
                 }
                 ~"!!"  => {
-                    let end = hist.len() -1;
-                    let lastprog = hist.remove(end);
+                    let lastprog = copy hist.last();
                     let args: ~[~str] = lastprog.split_iter(' ').filter(|&x| x != "").transform(|x| x.to_owned()).collect();
                     parse_and_run("sudo", args, false);
+                }
+                ~"\x1b[A" => {
+                    let lastprog = copy hist.last();
+                    let mut argv: ~[~str] = lastprog.split_iter(' ').filter(|&x| x != "").transform(|x| x.to_owned()).collect();
+                    let program = argv.remove(0);
+                    parse_and_run(program, argv, false);
                 }
                 _           => {
                     let dir: &Path = &GenericPath::from_str(line);
