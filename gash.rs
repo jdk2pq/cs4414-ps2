@@ -34,7 +34,7 @@ fn write_file_fd(filename: &str) -> i32 {
     }
 }
 
-fn readclose(fd: libc::c_int) -> ~str {
+fn read_close(fd: libc::c_int) -> ~str {
     unsafe {
         let file = os::fdopen(fd);
         let reader = io::FILE_reader(file, false);
@@ -44,21 +44,17 @@ fn readclose(fd: libc::c_int) -> ~str {
     }
 }
 
-fn writeclose(fd: libc::c_int, s: &str) {
-    let writer = io::fd_writer(fd, false);
-    writer.write_str(s);
-    os::close(fd);
-}
-
-
 fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to return an int
     let args = args.to_owned();
+    // Extra Feature! backticks!
+
+    //
     let mut i = 0; 
     let mut list_pos = 0;
-    let mut pipes: ~[os::Pipe] = ~[os::pipe(), ];
-    let mut first_p = pipes[0];
-    let mut last_p = os::pipe();
-    let mut progs_to_run: ~[p_params] = ~[p_params { program: program.to_owned(), args: ~[], in_fd: first_p.in, out_fd: last_p.out}];
+    let mut pipes: ~[os::Pipe] = ~[];
+    let  first_p = os::pipe();
+    let  last_p = os::pipe();
+    let mut progs_to_run: ~[p_params] = ~[p_params { program: program.to_owned(), args: ~[], in_fd: 0, out_fd: last_p.out}];
     while list_pos < args.len() {
         let arg: ~str = args[list_pos].to_owned();
         let mut cur_prog = copy progs_to_run[i];
@@ -102,7 +98,7 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
     let error_p = os::pipe();
     while j <  progs_to_run.len()  {
         let cur = copy progs_to_run[j];
-        // This spawns out sub process
+        // This spawns our subprocesses
         run::spawn_process_os(cur.program, 
                               cur.args,
                               None, None, 
@@ -112,20 +108,20 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
         j += 1;
     };
 
+    // we must close all open file descriptors of parent process
     os::close(last_p.out);
+    os::close(first_p.in);
     for pipes.iter().advance() |pipe| {
         os::close(pipe.out);
         os::close(pipe.in);
     };
     os::close(error_p.out);
-    os::close(error_p.in);
-    let actual = readclose(last_p.in);
-    println(actual);
+    println(read_close(error_p.in));
+    println(read_close(last_p.in));
+    
 }
 
 fn main() {
-    // `static indicates that variable will have the static lifetime, meaing
-    // it gets to live for the whole life of the program
     let mut cwd: ~str = os::getcwd().to_str();
     let mut hist: ~[~str] = ~[]; 
     let mut lastarg: ~str = ~"";
