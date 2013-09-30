@@ -1,32 +1,72 @@
-use std::{io, run, os, vec};
+use std::{io, run, os, libc};
+use std::run::{Process, ProcessOptions};
 
 struct p_params  { // stores information to be passed into a process
     program: ~str,
-    args: ~[~str]
+    args: ~[~str],
+    in_fd:    Option<i32>,
+    out_fd:   Option<i32>,
+}
+
+fn get_file_fd(filename: &str) -> i32 {
+    let test: &Path = &GenericPath::from_str(filename);
+    if !os::path_exists(test) { 
+        fail!("no such file"); 
+    }
+    unsafe {
+        do os::as_c_charp(filename) |filename| {
+            do os::as_c_charp ("r") |mode| { 
+                let FILE = libc::fopen(filename, mode); //A ptr to a FILE struct
+                libc::fileno(FILE)
+            } 
+        }
+    }
+}
+
+fn write_file_fd(filename: &str) -> i32 {
+    unsafe {
+        do os::as_c_charp(filename) |filename| {
+            do os::as_c_charp ("w") |mode| { 
+                let FILE = libc::fopen(filename, mode); //A ptr to a FILE struct
+                libc::fileno(FILE)
+            } 
+        }
+    }
 }
 
 fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to return an int
-    // deal with args to figure out what needs to be done with fds
-    let mut first = p_params { program: program.to_owned(), args: ~[]};
-    let mut progs_to_run: ~[p_params] = ~[first];
+    let args = args.to_owned();
+    let mut progs_to_run: ~[p_params] = ~[p_params { program: program.to_owned(), args: ~[], in_fd: Some(0), out_fd: Some(1)}];
     let mut i = 0; 
-    for args.iter().advance |arg| {
-        let mut arg: ~str = arg.to_owned();
+    let mut list_pos = 0;
+    while list_pos < args.len() {
+        let arg: ~str = args[list_pos].to_owned();
+        let mut cur_prog = copy progs_to_run[i];
         match arg {
-            ~"<"    => {},
-            ~">"    => {},
+            ~"<"    => {
+                let filename: &str = args[list_pos + 1];
+                let FILE_fd: i32 = get_file_fd(filename);
+                cur_prog.in_fd =  Some(FILE_fd);
+                progs_to_run[i] = cur_prog; 
+                list_pos += 1;  
+            },
+            ~">"    => {
+                let filename: &str = args[list_pos + 1];
+                let FILE_fd: i32 = write_file_fd(filename);
+                cur_prog.out_fd =  Some(FILE_fd);
+                progs_to_run[i] = cur_prog; 
+                list_pos += 1;  
+            },
             ~"|"    => {
-                let next_pstruct = p_params { program: ~"", args: ~[]};
+                let pipe: @os::Pipe = @os::pipe();
+                println(fmt!("%?", pipe));
+                cur_prog.out_fd = Some(pipe.in);
+                progs_to_run[i] = cur_prog;
+                let next_pstruct = p_params { program: ~"", args: ~[], in_fd: Some(pipe.in), out_fd: Some(1)};
                 progs_to_run.push(next_pstruct);
                 i += 1;
-                // deal with pipe setup
             },
             _       => {
-                // must copy out and in for some reason
-                // ASK SOMEONE DONT FORGET
-                // remove copy compiler throws:
-                // error: cannot move out of captured outer variable 
-                let mut cur_prog = copy progs_to_run[i];
                 if cur_prog.program != ~"" {
                     println(fmt!("%?", arg));
                     cur_prog.args.push(arg);
@@ -36,11 +76,23 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
                 progs_to_run[i] = cur_prog;
             },
         }
+        list_pos = list_pos + 1;
     }
     println(fmt!("%?", progs_to_run));
 
     // spawn process
-    run::process_status(progs_to_run[0].program, progs_to_run[0].args);
+    let mut j = 0;
+    while j < progs_to_run.len() {
+        let cur = &progs_to_run[j];
+        Process::new(cur.program, cur.args, ProcessOptions { 
+           env: None,
+            dir: None,
+            in_fd:  cur.in_fd,
+            out_fd: cur.out_fd,
+            err_fd: Some(2) 
+        }); 
+        j += 1;
+    };
 }
 
 
