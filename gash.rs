@@ -80,7 +80,6 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
             ~"|"    => {
                 let pipe =  os::pipe();
                 pipes.push(pipe);
-                println(fmt!("%?", pipe));
                 cur_prog.out_fd = pipe.out;
                 progs_to_run[i] = cur_prog;
                 let next_pstruct = p_params { program: ~"", args: ~[], in_fd: pipe.in, out_fd: last_p.out};
@@ -101,19 +100,20 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
 
     let mut j = 0;
     let error_p = os::pipe();
-    println(fmt!("%?", progs_to_run));
     while j <  progs_to_run.len()  {
         let cur = copy progs_to_run[j];
-        println("before");
-        run::spawn_process_os(cur.program, cur.args, None, None, cur.in_fd, cur.out_fd, error_p.out);
-        println("after");
+        // This spawns out sub process
+        run::spawn_process_os(cur.program, 
+                              cur.args,
+                              None, None, 
+                              cur.in_fd,
+                              cur.out_fd,
+                              error_p.out);
         j += 1;
     };
 
     os::close(last_p.out);
-    println(fmt!("closing pipes %?", pipes));
     for pipes.iter().advance() |pipe| {
-        println(fmt!("closing pipes %?", pipe));
         os::close(pipe.out);
         os::close(pipe.in);
     };
@@ -121,7 +121,6 @@ fn parse_and_run(program: &str, args: &[~str]) { // will eventually need to retu
     os::close(error_p.in);
     let actual = readclose(last_p.in);
     println(actual);
-
 }
 
 fn main() {
